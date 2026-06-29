@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
     const poc = normalizePoc(String(fd.get("poc") ?? "").trim());
     const platformRaw = String(fd.get("platform") ?? "web") as Platform;
     const platform: Platform = poc ? platformForPoc(poc) : platformRaw;
-    const qaEnv = String(fd.get("qa_env") ?? "stg").trim();
+    const qaEnvRaw = String(fd.get("qa_env") ?? "").trim();
+    const qaEnv = platform === "app" ? (qaEnvRaw || "stg") : qaEnvRaw;
     const taskNameRaw = String(fd.get("task_name") ?? "").trim() || null;
     const taskName = poc ? `${taskNameRaw ? taskNameRaw + " " : ""}[${poc}]` : taskNameRaw;
     const epicKey = String(fd.get("epic_key") ?? "").trim() || null;
@@ -124,8 +125,8 @@ export async function POST(req: NextRequest) {
     if (!file) return Response.json({ error: "TC 파일을 선택해 주세요" }, { status: 400 });
     if (!domain || !getDomainById(domain)) return Response.json({ error: "유효한 도메인을 선택해 주세요" }, { status: 400 });
     if (!["web", "mweb", "app"].includes(platform)) return Response.json({ error: "플랫폼을 선택해 주세요" }, { status: 400 });
-    if (!qaEnv) return Response.json({ error: "테스트 환경 URL을 입력해 주세요" }, { status: 400 });
-    if (!/^https?:\/\/\S{1,500}$/i.test(qaEnv)) return Response.json({ error: "유효한 URL을 입력해 주세요 (https://...)" }, { status: 400 });
+    if (platform !== "app" && !qaEnv) return Response.json({ error: "테스트 환경 URL을 입력해 주세요" }, { status: 400 });
+    if (platform !== "app" && !/^https?:\/\/\S{1,500}$/i.test(qaEnv)) return Response.json({ error: "유효한 URL을 입력해 주세요 (https://...)" }, { status: 400 });
     if (!requestedBy) return Response.json({ error: "실행자 입력은 필수입니다" }, { status: 400 });
 
     const uploadDir = path.join(process.cwd(), "uploads");

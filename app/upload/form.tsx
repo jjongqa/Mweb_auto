@@ -148,6 +148,7 @@ export function UploadForm({ domainAvgSec = {} }: { domainAvgSec?: Record<string
   const selectedWorkerMeta = workers.find((w) => w.name === selectedWorker);
   const selectedIsBuiltin = !!selectedWorker && (selectedWorker === builtinWorker || selectedWorkerMeta?.version === "builtin");
   const selectedWorkerSlots = selectedWorkerMeta?.max_concurrent ?? 1;
+  const hideQaEnv = !pocMode && platform === "app";
 
   // TC 생성 페이지에서 넘어온 경우(?tcGenId=) — 생성된 CSV 를 자동 로드 + 분석
   useEffect(() => {
@@ -231,7 +232,7 @@ export function UploadForm({ domainAvgSec = {} }: { domainAvgSec?: Record<string
     const fd = new FormData();
     for (const f of files) fd.append("tc_files", f);
     fd.append("domain", domain);
-    fd.append("qa_env", qaEnv);
+    fd.append("qa_env", hideQaEnv ? "stg" : qaEnv);
     fd.append("task_name", taskName);
     fd.append("epic_key", epicKey);
     fd.append("requested_by", requestedBy);
@@ -269,7 +270,7 @@ export function UploadForm({ domainAvgSec = {} }: { domainAvgSec?: Record<string
     setError("");
     if (files.length === 0) { setError("TC 파일을 1개 이상 선택해 주세요"); return; }
     if (!domain) { setError("도메인을 선택해 주세요"); return; }
-    if (!qaEnv) { setError("QA 환경을 선택해 주세요"); return; }
+    if (!hideQaEnv && !qaEnv) { setError("QA 환경을 선택해 주세요"); return; }
     if (!requestedBy.trim()) {
       setError("실행자를 입력해 주세요 (jira-settings 에 등록한 본인 이름과 일치해야 본인 토큰 사용)");
       return;
@@ -420,7 +421,7 @@ export function UploadForm({ domainAvgSec = {} }: { domainAvgSec?: Record<string
         <BuDomainSelect value={domain} onChange={setDomain} required />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-4 ${hideQaEnv ? "" : "md:grid-cols-2"}`}>
         <div>
           <label className="label">플랫폼 {pocMode ? "(POC 자동)" : "*"}</label>
           {pocMode ? (
@@ -440,18 +441,20 @@ export function UploadForm({ domainAvgSec = {} }: { domainAvgSec?: Record<string
             </select>
           )}
         </div>
-        <div>
-          <label className="label">테스트 환경 URL *</label>
-          <input
-            type="url"
-            value={qaEnv}
-            onChange={(e) => setQaEnv(e.target.value.trim())}
-            required
-            className="input font-mono"
-            placeholder="https://stg.kurly.com"
-          />
-          <p className="mt-0.5 text-[11px] text-neutral-400">워커가 접근 가능한 베이스 URL 전체 입력 (https://...)</p>
-        </div>
+        {!hideQaEnv && (
+          <div>
+            <label className="label">테스트 환경 URL *</label>
+            <input
+              type="url"
+              value={qaEnv}
+              onChange={(e) => setQaEnv(e.target.value.trim())}
+              required
+              className="input font-mono"
+              placeholder="https://stg.kurly.com"
+            />
+            <p className="mt-0.5 text-[11px] text-neutral-400">워커가 접근 가능한 베이스 URL 전체 입력 (https://...)</p>
+          </div>
+        )}
       </div>
 
       <div>
