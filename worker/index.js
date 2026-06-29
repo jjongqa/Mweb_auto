@@ -1724,6 +1724,8 @@ ${formatDataAgentRolesBlock(dataAgents)}
 - 주문 데이터 생성(/api/test-data/order)은 memberNo와 이미 검증된 주문 가능 dealProductNo가 있어야 바로 수행한다.
   dealProductNo가 unknown/auto-or-reuse/빈값이면 상품을 장시간 탐색하지 말고 BLOCKED로 반환한다.
   이때 errorMessage에는 "LACMS 계정 또는 사전 검증된 dealProductNo 필요"를 포함하고, notes에는 LACMS 계정 입력 후 상품 준비 또는 dealProductNo 재전달이 필요하다고 적는다.
+- BLOCKED 이후 사용자가 입력한 lacmsEmail/lacmsPassword/memberNo/dealProductNo가 inputs에 있으면 같은 요청의 재시도로 간주한다.
+  비밀번호는 rawOutput/notes/verification에 절대 노출하지 말고, 필요한 API 호출에만 사용한다.
 
 ## 출력
 반드시 아래 JSON 하나만 출력한다. 설명 문장, 마크다운, 코드펜스 없이 JSON만 출력한다.

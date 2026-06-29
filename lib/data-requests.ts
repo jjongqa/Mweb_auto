@@ -169,3 +169,49 @@ export function completeDataRequest(
   );
   return getDataRequest(id);
 }
+
+function parseInputs(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function resumeDataRequest(
+  id: string,
+  extraInputs: Record<string, unknown>,
+  note = "사용자 입력값을 반영해 데이터 요청을 재시도합니다."
+): DataRequest | null {
+  const row = getDataRequest(id);
+  if (!row) return null;
+  if (!["blocked", "failed"].includes(row.status)) return row;
+
+  const mergedInputs = {
+    ...parseInputs(row.inputs),
+    ...extraInputs,
+    resumedAt: new Date().toISOString(),
+  };
+
+  db.prepare(
+    `UPDATE data_requests
+     SET status='pending',
+         inputs=?,
+         claimed_by=NULL,
+         claimed_at=NULL,
+         finished_at=NULL,
+         result_context=NULL,
+         verification=NULL,
+         notes=?,
+         error_message=NULL,
+         raw_output=NULL,
+         updated_at=datetime('now')
+     WHERE id=? AND status IN ('blocked', 'failed')`
+  ).run(JSON.stringify(mergedInputs), note, id);
+
+  return getDataRequest(id);
+}

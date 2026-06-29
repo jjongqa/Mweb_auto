@@ -17,6 +17,7 @@ import { JiraIssuesPanel } from "./jira-panel";
 import { FailBlockedListCard } from "./fail-blocked-list";
 import { MessagePanel } from "./message-panel";
 import { DataRequestToast } from "./data-request-toast";
+import { DataRequestResumeForm } from "./data-request-resume-form";
 import { listIssuesForJob, getSettings } from "@/lib/jira";
 import { getWorker } from "@/lib/workers";
 import { listDataRequests, type DataRequest } from "@/lib/data-requests";
@@ -58,6 +59,33 @@ function getHumanNotes(notes: string | null | undefined): string {
   if (!notes) return "";
   const idx = notes.indexOf("agentFlow:");
   return (idx >= 0 ? notes.slice(0, idx) : notes).trim();
+}
+
+function maskSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(maskSecrets);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, val]) => {
+      if (/password|token|jwt|secret|authorization/i.test(key)) return [key, "********"];
+      return [key, maskSecrets(val)];
+    })
+  );
+}
+
+function needsCredentialInput(req: DataRequest) {
+  if (!["blocked", "failed"].includes(req.status)) return false;
+  const text = [
+    req.need,
+    req.reason,
+    req.inputs,
+    req.verification,
+    req.notes,
+    req.error_message,
+    req.preferred_tool,
+  ].filter(Boolean).join("\n").toLowerCase();
+  const credentialWords = ["lacms", "계정", "로그인", "비밀번호", "password", "인증", "credential", "권한", "입력"];
+  const dataWords = ["주문", "order", "배송", "결제", "클레임", "dealproductno", "상품"];
+  return credentialWords.some((w) => text.includes(w)) && dataWords.some((w) => text.includes(w));
 }
 
 function secondsBetween(start: string | null | undefined, end: string | null | undefined): number | null {
@@ -548,6 +576,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
               const humanNotes = getHumanNotes(req.notes);
               const elapsed = secondsBetween(req.created_at, req.finished_at || req.updated_at);
               const requester = req.source_agent || thisChunkAgent || "수행 에이전트";
+              const canResume = needsCredentialInput(req);
               const flowItems = [
                 { label: requester, title: "데이터 요청 등록", desc: req.need, done: true },
                 { label: "데이터", title: "필요 데이터 분석", desc: agentFlow?.["데이터"] || "요청 조건과 TC 사전조건을 분석합니다.", done: ["running", "ready", "blocked", "failed"].includes(req.status) },
@@ -606,6 +635,8 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                     ))}
                   </div>
 
+                  {canResume && <DataRequestResumeForm requestId={req.id} />}
+
                   {(resultContext || req.verification || humanNotes || inputs || req.error_message) && (
                     <details className="mt-3 rounded-md border border-cyan-100 bg-cyan-50/50 p-3">
                       <summary className="cursor-pointer text-xs font-semibold text-cyan-800">요청/결과 상세 보기</summary>
@@ -613,7 +644,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                         {inputs && (
                           <div>
                             <div className="text-[11px] font-semibold text-neutral-500">요청 입력</div>
-                            <pre className="mt-1 max-h-40 overflow-auto rounded bg-white p-2 text-[11px] text-neutral-700">{JSON.stringify(inputs, null, 2)}</pre>
+                            <pre className="mt-1 max-h-40 overflow-auto rounded bg-white p-2 text-[11px] text-neutral-700">{JSON.stringify(maskSecrets(inputs), null, 2)}</pre>
                           </div>
                         )}
                         {resultContext && (
