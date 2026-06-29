@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* KPDS 시맨틱 컬러(light) — gray 기반. 출처: kpds-web tokens color/light.ts
+   background2=gray50(페이지 바탕) · text.primary=gray900 · line2=gray200(테두리) · text.tertiary=gray600 */
+:root {
+  --background: #f2f5f8; /* KPDS background2(gray50) — 옅은 회색 페이지 캔버스. 카드/헤더는 순백 유지 → 레이어 대비로 카드가 떠 보임 */
+  --foreground: #222222; /* KPDS gray900 — 본문 텍스트 */
+  --border: #dfe4eb; /* KPDS gray200 — 기본 테두리(line2) */
+  --muted: #848f9a; /* KPDS gray600 — 보조 텍스트(text.tertiary) */
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --primary: #5f0080;
+  --primary-hover: #4d0066;
+  --focus-ring: rgba(95, 0, 128, 0.16);
+}
+
+html,
+body {
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, #f8fafc 0%, var(--background) 140px),
+    var(--background);
+}
+
+/* KPDS radius($8/$12)·shadow($shadow1) 는 arbitrary 값으로 직접 지정(config 리로드 불필요). */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-[8px] px-4 py-2 text-sm font-semibold transition-colors;
+  }
+  .btn-primary {
+    @apply btn bg-kurly-500 text-white shadow-[0_2px_6px_rgba(95,0,128,0.18)] hover:bg-kurly-600 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply btn whitespace-nowrap text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900;
+  }
+  /* KPDS 카드 — 흰 배경 + gray200 테두리 + 12px 라운드 + shadow1(은은) */
+  .card {
+    @apply rounded-[12px] border border-neutral-200 bg-white shadow-kpds1;
+  }
+  .input {
+    @apply w-full rounded-[8px] border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-kurly-500 focus:outline-none focus:ring-4 focus:ring-kurly-500/10;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-neutral-700;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+}
+
+/* 에이전트 오피스 — 수행 중 캐릭터 깡총 모션 */
+@keyframes agent-hop {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-22%); }
+  55% { transform: translateY(0); }
+}
+.agent-hop {
+  animation: agent-hop 0.7s ease-in-out infinite;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-hop { animation: none; }
+}

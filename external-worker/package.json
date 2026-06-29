@@ -1,0 +1,14 @@
+{
+  "name": "kurly-qa-worker",
+  "version": "1.15.0",
+  "private": true,
+  "description": "Kurly QA 분산 워커 (기능테스트 inline 컨텍스트=admin Drive 동기화 기반 + TC설계/작성 분배 + Sonnet 4.6 default + stream-json + 끼어들기 + Mweb device emulation + cancel 안정성 + multi-concurrency default 3 + 좀비 BFS 청소 + v1.11 진행 마커 강화(TC-{No}: PASS/FAIL/BLOCKED 한 줄 강제 — 빌트인 워커와 동기화) + v1.12 TC설계/작성 동시 실행(WORKER_TCGEN_CONCURRENT 기본 3 — 지시기반 병렬 설계/작성이 진짜 동시 처리) + v1.13 하네스(커머스+물류 TC생성 엔진) 실행 지원(KURLY_HARNESS_PATH + python deps, __HARNESS__ 잡) + v1.14 한 머신 N병렬 하네스(잡별 격리 cwd, WORKER_HARNESS_CONCURRENT) + v1.15 claude stdout UTF-8 디코딩 수정(청크 경계 한글 깨짐 �))",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "setup": "node scripts/setup.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}
