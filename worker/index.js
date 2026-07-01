@@ -645,6 +645,40 @@ ${mwebBlock}${additionalBlock}${specBlock}${encouragementBlock}${coreKnowledgeBl
 - 복잡 TC: **3~5분** (도구 호출 ≤ 15회)
 - 5분 초과 또는 도구 호출 상한 초과 → BLOCKED 처리 + 즉시 다음 TC. (추론 PASS 절대 금지)
 
+### 🧱 BLOCKED 최후 판정 규칙
+
+BLOCKED는 사람이 봐도 "지금 자동 수행을 계속할 수 없다"가 명확할 때만 쓴다.
+selector 탐색 실패, 클릭 실패, 일시 로딩 지연, 로그인 상태 불확실, 팝업/모달 가림, 현재 페이지 불일치만으로 즉시 BLOCKED 처리하지 않는다.
+
+BLOCKED 처리 전 체크리스트:
+1. 현재 URL이 TC 대상 화면인지 확인했다.
+2. 로그인 상태가 TC 전제조건과 맞는지 확인했다.
+3. 팝업/모달/배너가 주요 버튼을 가리지 않는지 확인했다.
+4. 화면 로딩이 끝났는지 확인했다.
+5. 동일 selector 반복 대신 대체 selector를 1회 시도했다.
+6. 클릭/입력이 실패한 경우 browser_evaluate 우회를 1회 시도했다.
+7. TC 사전조건 자체가 맞지 않으면 복구 가능한지 판단했다.
+8. 사람/권한/데이터/기간/환경이 필요하다고 명확할 때 최종 BLOCKED 처리했다.
+
+BLOCKED 기록 시 반드시 아래 사유 코드 중 하나를 Notes 또는 사유 문장에 포함한다.
+
+진짜 차단 코드:
+- [BLOCKED_DATA_REQUIRED] 필요한 테스트 데이터가 없음
+- [BLOCKED_PERMISSION_REQUIRED] 계정/권한 부족
+- [BLOCKED_ENV_EXPIRED] 프로모션/이벤트/기간 만료
+- [BLOCKED_EXTERNAL_DEPENDENCY] 외부 시스템/배치/승인 대기
+- [BLOCKED_MANUAL_APPROVAL_REQUIRED] 사람 승인/수동 조치 필요
+
+재시도 후보 코드:
+- [BLOCKED_RETRY_SELECTOR] selector/요소 탐색 실패
+- [BLOCKED_RETRY_TIMEOUT] 일시 로딩/응답 지연
+- [BLOCKED_RETRY_LOGIN_STATE] 로그인/세션 상태 꼬임
+- [BLOCKED_RETRY_OVERLAY] 팝업/모달/배너 가림
+- [BLOCKED_RETRY_STATE_MISMATCH] 화면/데이터 상태가 TC 전제와 다름
+
+재시도 후보 코드는 체크리스트와 1회 복구 시도 후에도 실패할 때만 BLOCKED로 남긴다.
+예: \`TC-12: BLOCKED — [BLOCKED_RETRY_OVERLAY] 앱 설치 유도 팝업이 장바구니 버튼을 가려 클릭할 수 없습니다.\`
+
 ---
 
 ## 실행 정보
