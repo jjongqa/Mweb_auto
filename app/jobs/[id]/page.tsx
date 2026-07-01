@@ -118,6 +118,69 @@ function requestStatusLabel(status: DataRequest["status"]) {
   }[status] ?? status;
 }
 
+type ResultIssue = {
+  no: string;
+  priority: string;
+  result: "FAIL" | "BLOCKED";
+  title: string;
+  reason: string;
+};
+
+type ResultStats = {
+  total: number;
+  passed: number;
+  failed: number;
+  blocked: number;
+  p1Failed: number;
+  p1Blocked: number;
+  missingReason: number;
+  issues: ResultIssue[];
+};
+
+function emptyResultStats(): ResultStats {
+  return {
+    total: 0,
+    passed: 0,
+    failed: 0,
+    blocked: 0,
+    p1Failed: 0,
+    p1Blocked: 0,
+    missingReason: 0,
+    issues: [],
+  };
+}
+
+function mergeResultStats(stats: ResultStats[]): ResultStats {
+  return stats.reduce((acc, cur) => ({
+    total: acc.total + cur.total,
+    passed: acc.passed + cur.passed,
+    failed: acc.failed + cur.failed,
+    blocked: acc.blocked + cur.blocked,
+    p1Failed: acc.p1Failed + cur.p1Failed,
+    p1Blocked: acc.p1Blocked + cur.p1Blocked,
+    missingReason: acc.missingReason + cur.missingReason,
+    issues: acc.issues.concat(cur.issues),
+  }), emptyResultStats());
+}
+
+function resultVerdict(failed: number, blocked: number) {
+  if (failed > 0) return {
+    label: "이슈 있음",
+    style: "bg-rose-100 text-rose-700",
+    note: `FAIL ${failed}건은 확인/재실행이 필요합니다.`,
+  };
+  if (blocked > 0) return {
+    label: "조건 부족",
+    style: "bg-amber-100 text-amber-700",
+    note: `BLOCKED ${blocked}건은 데이터/권한/환경 조건 확인이 필요합니다.`,
+  };
+  return {
+    label: "통과",
+    style: "bg-emerald-100 text-emerald-700",
+    note: "실패/차단 없이 완료됐습니다.",
+  };
+}
+
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const job = getJob(id);
@@ -224,6 +287,56 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
     }
     return -1;
   };
+  const summarizeResultDir = (resultDir: string | null | undefined): ResultStats => {
+    const stats = emptyResultStats();
+    if (!resultDir) return stats;
+    const summaryPath = path.join(resultDir, "summary.csv");
+    if (!fs.existsSync(summaryPath)) return stats;
+    try {
+      const text = fs.readFileSync(summaryPath, "utf-8").replace(/^﻿/, "");
+      const rows = parseCsv(text);
+      if (rows.length < 2) return stats;
+      const header = rows[0];
+      const iNo = colIdx(header, "No");
+      const iPrio = colIdx(header, "Priority");
+      const iTitle = colIdx(header, "TC Title", "Title");
+      const iExpected = colIdx(header, "Expected Result", "Expected");
+      const iActual = colIdx(header, "Actual Result", "Actual");
+      const iResult = colIdx(header, "Result");
+      const iNotes = colIdx(header, "Notes", "Fail Reason", "Reason");
+      for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i];
+        const result = (cells[iResult] || "").trim().toUpperCase();
+        if (!result) continue;
+        stats.total++;
+        if (result === "PASS") {
+          stats.passed++;
+          continue;
+        }
+        if (result === "FAIL") stats.failed++;
+        else if (result === "BLOCKED") stats.blocked++;
+        else continue;
+
+        const priority = (cells[iPrio] || "").trim();
+        const reason = (cells[iNotes] || "").trim();
+        const actual = (cells[iActual] || "").trim();
+        const expected = (cells[iExpected] || "").trim();
+        if (!reason || /^사유:\s*시뮬레이션 실패$/i.test(reason) || reason === "-") stats.missingReason++;
+        if (priority === "P1" && result === "FAIL") stats.p1Failed++;
+        if (priority === "P1" && result === "BLOCKED") stats.p1Blocked++;
+        stats.issues.push({
+          no: cells[iNo] || `?-${i}`,
+          priority,
+          result: result as "FAIL" | "BLOCKED",
+          title: cells[iTitle] || "(제목 없음)",
+          reason: reason || actual || expected || "사유 미기재",
+        });
+      }
+    } catch {
+      return stats;
+    }
+    return stats;
+  };
   if (job.result_dir) {
     // 1순위: fail-detail.csv (FAIL Reason 컬럼 있음)
     const failDetailPath = path.join(job.result_dir, "fail-detail.csv");
@@ -324,10 +437,14 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   // Phase 2 멀티 분할 — 이 잡이 청크면 그룹 합산
   const chunkGroup = job.chunk_group_id ? aggregateChunkGroup(job.chunk_group_id) : null;
   const dataRequests = listDataRequests({ sourceJobId: job.id, limit: 100 });
+  const currentStats = summarizeResultDir(job.result_dir);
+  const groupStats = chunkGroup && chunkGroup.chunkCount > 1
+    ? mergeResultStats(chunkGroup.jobs.map((c) => summarizeResultDir(c.result_dir)))
+    : currentStats;
 
   // 완료 잡 결과 요약 (히어로 배너용)
   const isFinished = ["succeeded", "failed", "canceled"].includes(job.status);
-  const statusKR: Record<string, string> = { succeeded: "성공", failed: "실패", canceled: "취소", running: "실행 중", pending: "대기" };
+  const statusKR: Record<string, string> = { succeeded: "완료", failed: "실패", canceled: "취소", running: "실행 중", pending: "대기" };
   // 히어로 결과: 청크 그룹 멤버면 "그룹 합산"을 주 결과로 표시(단일 청크만 보여 헷갈리던 문제). 아니면 이 잡 결과.
   const inChunkGroup = !!(chunkGroup && chunkGroup.chunkCount > 1);
   const heroPassed = inChunkGroup ? chunkGroup!.passed : job.passed;
@@ -338,6 +455,9 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const heroRate = heroTotal > 0 ? Math.round((heroPassed / heroTotal) * 100) : 0;
   const heroRateColor = heroRate >= 90 ? "text-emerald-600" : heroRate >= 70 ? "text-amber-600" : "text-rose-600";
   const thisChunkAgent = job.task_name?.match(/\[([^\]]+)\]\s*$/)?.[1] || null;
+  const verdict = resultVerdict(heroFailed, heroBlocked);
+  const priorityStats = inChunkGroup ? groupStats : currentStats;
+  const p1IssueCount = priorityStats.p1Failed + priorityStats.p1Blocked;
 
   return (
     <div className="space-y-6">
@@ -367,15 +487,21 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
 
       {/* 완료 결과 요약 히어로 — 청크 그룹이면 그룹 합산을 주 결과로(이 청크 숫자는 보조줄). */}
       {isFinished && (
-        <div className="card flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
-          <div className="flex items-center gap-3">
-            <span className={`badge text-sm ${heroStatus === "succeeded" ? "bg-emerald-100 text-emerald-700" : heroStatus === "failed" ? "bg-rose-100 text-rose-700" : heroStatus === "running" ? "bg-blue-100 text-blue-700" : "bg-neutral-200 text-neutral-600"}`}>
-              {statusKR[heroStatus] ?? heroStatus}
-            </span>
-            {heroTotal > 0 && <span className={`text-3xl font-bold ${heroRateColor}`}>{heroRate}%</span>}
+        <div className="card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={`badge text-sm ${heroStatus === "succeeded" ? "bg-neutral-100 text-neutral-700" : heroStatus === "failed" ? "bg-rose-100 text-rose-700" : heroStatus === "running" ? "bg-blue-100 text-blue-700" : "bg-neutral-200 text-neutral-600"}`}>
+                실행 {statusKR[heroStatus] ?? heroStatus}
+              </span>
+              <span className={`badge text-sm ${verdict.style}`}>테스트 {verdict.label}</span>
+              {heroTotal > 0 && <span className={`text-3xl font-bold ${heroRateColor}`}>{heroRate}%</span>}
+            </div>
+            <div className="text-sm text-neutral-600">
+              ⏱ {job.duration_sec != null ? formatDuration(job.duration_sec) : "-"}{inChunkGroup ? " (이 청크)" : ""}
+            </div>
           </div>
           {heroTotal > 0 && (
-            <div className="text-sm">
+            <div className="mt-3 text-sm">
               {inChunkGroup && <span className="mr-2 rounded bg-kurly-100 px-1.5 py-0.5 text-[11px] font-medium text-kurly-700">🎮 에이전트 {chunkGroup!.chunkCount}명 합산</span>}
               <span className="font-semibold text-emerald-600">{heroPassed}</span> PASS
               <span className="mx-1 text-neutral-300">·</span>
@@ -390,12 +516,95 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
               )}
             </div>
           )}
-          <div className="text-sm text-neutral-600">
-            ⏱ {job.duration_sec != null ? formatDuration(job.duration_sec) : "-"}{inChunkGroup ? " (이 청크)" : ""}
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className={`rounded px-2 py-1 ${heroFailed > 0 ? "bg-rose-50 text-rose-700" : heroBlocked > 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+              {verdict.note}
+            </span>
+            {p1IssueCount > 0 && (
+              <span className="rounded bg-rose-100 px-2 py-1 font-semibold text-rose-700">
+                긴급 확인: P1 이슈 {p1IssueCount}건 (FAIL {priorityStats.p1Failed} · BLOCKED {priorityStats.p1Blocked})
+              </span>
+            )}
+            {priorityStats.missingReason > 0 && (
+              <span className="rounded bg-amber-50 px-2 py-1 text-amber-700">사유 보강 필요 {priorityStats.missingReason}건</span>
+            )}
           </div>
-          {heroFailed > 0 && (
-            <span className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-600">실패 {heroFailed}건 — 아래 상세 / 재실행 확인</span>
-          )}
+        </div>
+      )}
+
+      {isFinished && heroTotal > 0 && (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-kpds1">
+            <div className="text-xs font-semibold text-neutral-500">종합 결과</div>
+            <div className="mt-2 text-sm">
+              <span className="font-semibold text-emerald-600">{heroPassed}</span> P
+              <span className="mx-1 text-neutral-300">·</span>
+              <span className="font-semibold text-rose-600">{heroFailed}</span> F
+              <span className="mx-1 text-neutral-300">·</span>
+              <span className="font-semibold text-amber-600">{heroBlocked}</span> B
+              <span className="ml-1 text-neutral-400">/ {heroTotal}</span>
+            </div>
+            <div className="mt-1 text-xs text-neutral-500">{inChunkGroup ? "전체 에이전트 합산 기준" : "현재 잡 기준"}</div>
+          </div>
+          <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-kpds1">
+            <div className="text-xs font-semibold text-neutral-500">현재 에이전트{thisChunkAgent ? ` · ${thisChunkAgent}` : ""}</div>
+            <div className="mt-2 text-sm">
+              <span className="font-semibold text-emerald-600">{job.passed}</span> P
+              <span className="mx-1 text-neutral-300">·</span>
+              <span className="font-semibold text-rose-600">{job.failed}</span> F
+              <span className="mx-1 text-neutral-300">·</span>
+              <span className="font-semibold text-amber-600">{job.blocked}</span> B
+              <span className="ml-1 text-neutral-400">/ {job.total}</span>
+            </div>
+            <div className="mt-1 text-xs text-neutral-500">{inChunkGroup ? `청크 ${(job.chunk_index ?? 0) + 1}/${chunkGroup!.chunkTotal}` : "단일 수행"}</div>
+          </div>
+          <div className={`rounded-lg border p-4 shadow-kpds1 ${p1IssueCount > 0 ? "border-rose-200 bg-rose-50" : priorityStats.missingReason > 0 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+            <div className={`text-xs font-semibold ${p1IssueCount > 0 ? "text-rose-700" : priorityStats.missingReason > 0 ? "text-amber-700" : "text-emerald-700"}`}>우선 확인 포인트</div>
+            <div className="mt-2 text-sm font-semibold">
+              {p1IssueCount > 0 ? `P1 이슈 ${p1IssueCount}건` : priorityStats.missingReason > 0 ? `사유 보강 ${priorityStats.missingReason}건` : "추가 조치 없음"}
+            </div>
+            <div className="mt-1 text-xs text-neutral-600">
+              {p1IssueCount > 0
+                ? "상세 목록에서 P1 FAIL/BLOCKED를 먼저 확인하세요."
+                : priorityStats.missingReason > 0
+                  ? "실패/차단 사유가 비어 있거나 목업 문구라 원인 판단이 어렵습니다."
+                  : "실패/차단 없이 결과가 정리되었습니다."}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isFinished && p1IssueCount > 0 && (
+        <div className="card border-rose-200 bg-rose-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-rose-900">긴급 확인 필요 — P1 이슈 {p1IssueCount}건</h2>
+            <span className="text-xs text-rose-700">FAIL {priorityStats.p1Failed} · BLOCKED {priorityStats.p1Blocked}</span>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {priorityStats.issues
+              .filter((issue) => issue.priority === "P1")
+              .slice(0, 6)
+              .map((issue) => (
+                <div key={`${issue.no}-${issue.result}-${issue.title}`} className="rounded-md border border-rose-100 bg-white p-3">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="rounded bg-rose-100 px-1.5 py-0.5 font-semibold text-rose-700">{issue.result}</span>
+                    <span className="font-mono text-neutral-500">No.{issue.no}</span>
+                  </div>
+                  <div className="mt-1 line-clamp-2 text-sm font-medium text-neutral-800">{issue.title}</div>
+                  <div className="mt-1 line-clamp-2 text-xs text-neutral-600">{issue.reason}</div>
+                </div>
+              ))}
+          </div>
+          {p1IssueCount > 6 && <div className="mt-2 text-xs text-rose-700">외 {p1IssueCount - 6}건은 아래 실패/블록 목록에서 확인하세요.</div>}
+        </div>
+      )}
+
+      {isFinished && priorityStats.missingReason > 0 && (
+        <div className="card border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-sm font-semibold text-amber-900">리포트 품질 개선 필요 — 사유 보강 {priorityStats.missingReason}건</h2>
+          <p className="mt-1 text-xs text-amber-800">
+            실패/차단 사유가 비어 있거나 목업성 문구입니다. 실제 실행 리포트에서는 기대값, 실제값, 원인 추정, 다음 액션이 Notes/Fail Reason에 남아야 합니다.
+          </p>
         </div>
       )}
 

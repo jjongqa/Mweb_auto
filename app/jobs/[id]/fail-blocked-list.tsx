@@ -78,7 +78,9 @@ export function FailBlockedListCard({ jobId, failItems, blockedItems }: { jobId:
                     <div className="whitespace-pre-wrap break-words">{it.title}</div>
                   </td>
                   <td className={`px-2 py-2 align-top text-[11px] ${tab === "fail" ? "text-rose-700" : "text-amber-700"}`}>
-                    <div className="whitespace-pre-wrap break-words">{it.failReason || it.notes || "-"}</div>
+                    <div className="whitespace-pre-wrap break-words">
+                      {it.failReason || it.notes || <span className="font-medium text-amber-700">사유 미기재</span>}
+                    </div>
                   </td>
                   <td className="px-2 py-2 align-top text-[11px] text-neutral-600">
                     <div className="whitespace-pre-wrap break-words">{it.expected || "-"}</div>
