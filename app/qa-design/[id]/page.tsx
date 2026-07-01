@@ -6,6 +6,7 @@ import { formatDateTimeKR, formatDuration } from "@/lib/format-date";
 import { PollUntilDone } from "@/app/tc-gen/[id]/poll-until-done";
 import { RefinePanel } from "@/app/tc-gen/[id]/refine-panel";
 import { TcGenGroupBanner } from "@/app/tc-gen/[id]/group-banner";
+import { AgentRunway, getRunwayAgents } from "@/app/_components/agent-runway";
 import { ToTcButton } from "./to-tc-button";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,11 @@ export default async function QaDesignStatusPage({ params }: { params: Promise<{
   const designReview = job.status === "succeeded" && job.qa_analysis
     ? reviewQaDesignQuality(mergedAnalysis || job.qa_analysis)
     : null;
+  const runwayAgents = getRunwayAgents({
+    workerName: job.worker_name || job.target_worker,
+    group: "design",
+    nicknames: job.agent_nickname ? [job.agent_nickname] : [],
+  });
 
   return (
     <div className="space-y-5">
@@ -57,10 +63,13 @@ export default async function QaDesignStatusPage({ params }: { params: Promise<{
       )}
 
       {isActive && (
-        <div className="card border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-          <span className="font-medium">⏳ {job.status === "pending" ? "대기 중" : "QA 설계 분석 중"}…</span>
-          <span className="ml-2 text-xs text-blue-700">Claude가 기획서를 QA 관점으로 분석하고 있어요. 3초마다 자동 갱신.</span>
-        </div>
+        <>
+          <AgentRunway agents={runwayAgents} progress={job.status === "running" ? 42 : 12} phase="design" status={job.status === "pending" ? "pending" : "running"} />
+          <div className="card border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            <span className="font-medium">⏳ {job.status === "pending" ? "대기 중" : "QA 설계 분석 중"}…</span>
+            <span className="ml-2 text-xs text-blue-700">Claude가 기획서를 QA 관점으로 분석하고 있어요. 3초마다 자동 갱신.</span>
+          </div>
+        </>
       )}
       {job.status === "failed" && (
         <div className="card border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">

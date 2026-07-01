@@ -20,6 +20,7 @@ import { TcGenGroupBanner } from "../../[id]/group-banner";
 import { GroupAutoRefineButton } from "../../[id]/group-auto-refine-button";
 import { ReqCoveragePanel } from "../../req-coverage-panel";
 import { GroupIssueRefineButton } from "./issue-refine-button";
+import { AgentRunway, getRunwayAgents } from "@/app/_components/agent-runway";
 
 export const dynamic = "force-dynamic";
 
@@ -340,6 +341,13 @@ export default async function TcGenGroupPage({ params }: { params: Promise<{ gro
   const agents = effectiveJobs.map((job) => ({ job, review: reviewJob(job) }));
   const lowAgents = agents.filter((a) => (a.review?.score ?? 0) < AUTO_REFINE_THRESHOLD);
   const agentGatePass = lowAgents.length === 0;
+  const runwayAgents = getRunwayAgents({
+    workerName: seed.worker_name || seed.target_worker,
+    group: "write",
+    nicknames: summary.jobs.map((j) => j.agent_nickname),
+    fallbackCount: summary.total,
+  });
+  const groupProgress = summary.total > 0 ? Math.max(10, Math.min(92, (summary.done / summary.total) * 100)) : 12;
 
   return (
     <div className="space-y-5">
@@ -354,7 +362,12 @@ export default async function TcGenGroupPage({ params }: { params: Promise<{ gro
         <Link href="/tc-gen" className="btn-ghost text-sm">← TC 생성</Link>
       </div>
 
-      {summary.status === "running" && <TcGenGroupBanner groupId={groupId} basePath="/tc-gen" />}
+      {summary.status === "running" && (
+        <>
+          <AgentRunway agents={runwayAgents} progress={groupProgress} phase="write" status="running" />
+          <TcGenGroupBanner groupId={groupId} basePath="/tc-gen" />
+        </>
+      )}
 
       {merged ? (
         <section className="card border-emerald-200 bg-emerald-50 p-4">

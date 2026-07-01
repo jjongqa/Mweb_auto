@@ -541,7 +541,7 @@ export function AgentsOffice({
       {main && (
         <div className="card flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-neutral-50">
-            <PixelAgent hat={main.hat} exp={main.exp} c={main.color_c} b={main.color_b} s={main.color_s} size={52} hop={mainActive} />
+            <PixelAgent hat={main.hat} exp={main.exp} c={main.color_c} b={main.color_b} s={main.color_s} size={52} motion={mainActive ? "run" : "idle"} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -601,7 +601,7 @@ export function AgentsOffice({
                     </button>
                   )}
                   <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-md bg-neutral-50">
-                    <PixelAgent hat={a.hat} exp={a.exp} c={a.color_c} b={a.color_b} s={a.color_s} size={44} hop={activeAgents.has(a.nickname)} />
+                    <PixelAgent hat={a.hat} exp={a.exp} c={a.color_c} b={a.color_b} s={a.color_s} size={44} motion={activeAgents.has(a.nickname) ? "run" : "idle"} />
                   </div>
                   <div>
                     <NameEdit a={a} editing={editingId === a.id} value={editVal} onStart={startEdit} onChange={setEditVal} onSave={saveName} onCancel={cancelEdit} />

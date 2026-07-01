@@ -18,6 +18,7 @@ import { FailBlockedListCard } from "./fail-blocked-list";
 import { MessagePanel } from "./message-panel";
 import { DataRequestToast } from "./data-request-toast";
 import { DataRequestResumeForm } from "./data-request-resume-form";
+import { AgentRunway, getRunwayAgents } from "@/app/_components/agent-runway";
 import { listIssuesForJob, getSettings } from "@/lib/jira";
 import { getWorker } from "@/lib/workers";
 import { listDataRequests, type DataRequest } from "@/lib/data-requests";
@@ -458,6 +459,20 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const verdict = resultVerdict(heroFailed, heroBlocked);
   const priorityStats = inChunkGroup ? groupStats : currentStats;
   const p1IssueCount = priorityStats.p1Failed + priorityStats.p1Blocked;
+  const isActiveJob = job.status === "pending" || job.status === "running";
+  const doneForRunway = heroPassed + heroFailed + heroBlocked;
+  const runwayProgress = heroTotal > 0
+    ? Math.max(8, Math.min(96, (doneForRunway / heroTotal) * 100))
+    : job.status === "running" ? 35 : 10;
+  const runwayNicknames = inChunkGroup && chunkGroup
+    ? chunkGroup.jobs.map((c) => c.task_name?.match(/\[([^\]]+)\]\s*$/)?.[1] || null)
+    : [thisChunkAgent];
+  const runwayAgents = getRunwayAgents({
+    workerName: job.worker_name,
+    group: "exec",
+    nicknames: runwayNicknames,
+    fallbackCount: inChunkGroup && chunkGroup ? chunkGroup.chunkCount : 1,
+  });
 
   return (
     <div className="space-y-6">
@@ -484,6 +499,15 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           <Link href="/history" className="btn-ghost text-sm">← 히스토리</Link>
         </div>
       </div>
+
+      {isActiveJob && (
+        <AgentRunway
+          agents={runwayAgents}
+          progress={runwayProgress}
+          phase="exec"
+          status={job.status === "pending" ? "pending" : "running"}
+        />
+      )}
 
       {/* 완료 결과 요약 히어로 — 청크 그룹이면 그룹 합산을 주 결과로(이 청크 숫자는 보조줄). */}
       {isFinished && (

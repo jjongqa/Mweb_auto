@@ -34,6 +34,7 @@ export function PixelAgent({
   s,
   size = 48,
   hop = false,
+  motion = "idle",
 }: {
   hat: string;
   exp: string;
@@ -42,6 +43,7 @@ export function PixelAgent({
   s: string;
   size?: number;
   hop?: boolean;
+  motion?: "idle" | "hop" | "run" | "exhausted";
 }) {
   const grid = buildGrid(hat, exp);
   const cm: Record<string, string> = { c, b, s, k: "#241a12", m: "#7a3b2e", w: "#ffffff" };
@@ -61,9 +63,31 @@ export function PixelAgent({
       width={size}
       height={size}
       viewBox="0 0 48 48"
-      className={hop ? "agent-hop" : undefined}
+      className={
+        motion === "run"
+          ? "agent-run"
+          : motion === "exhausted"
+            ? "agent-exhausted"
+            : motion === "hop" || hop
+              ? "agent-hop"
+              : undefined
+      }
       style={{ imageRendering: "pixelated", display: "block" }}
     >
+      {motion === "run" && (
+        <>
+          <rect className="agent-dust agent-dust-a" x="1" y="39" width="5" height="3" fill="#d8c7ad" opacity="0.8" />
+          <rect className="agent-dust agent-dust-b" x="7" y="42" width="4" height="2" fill="#d8c7ad" opacity="0.65" />
+        </>
+      )}
+      {motion === "exhausted" && (
+        <>
+          <rect className="agent-sweat" x="36" y="11" width="4" height="4" fill="#38bdf8" />
+          <rect className="agent-sweat agent-sweat-b" x="40" y="17" width="3" height="3" fill="#7dd3fc" />
+          <rect className="agent-puff" x="2" y="15" width="5" height="3" fill="#cbd5e1" opacity="0.9" />
+          <rect className="agent-puff agent-puff-b" x="0" y="20" width="4" height="3" fill="#e2e8f0" opacity="0.8" />
+        </>
+      )}
       {rects}
     </svg>
   );

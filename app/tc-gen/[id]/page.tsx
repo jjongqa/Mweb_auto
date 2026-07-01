@@ -12,6 +12,7 @@ import { RefinePanel } from "./refine-panel";
 import { TcGenGroupBanner } from "./group-banner";
 import { AutoRefineButton } from "./auto-refine-button";
 import { GroupAutoRefineButton } from "./group-auto-refine-button";
+import { AgentRunway, getRunwayAgents } from "@/app/_components/agent-runway";
 
 export const dynamic = "force-dynamic";
 
@@ -512,6 +513,11 @@ export default async function TcGenStatusPage({ params }: { params: Promise<{ id
   const effectiveGroupId = getTcGenEffectiveGroupId(job);
   // 에이전트 상세는 해당 에이전트 산출물만 보여준다. 합본/종합 리뷰는 /tc-gen/group/[groupId] 메인에서 담당.
   const preview = job.status === "succeeded" ? readPreview(job.output_path) : null;
+  const runwayAgents = getRunwayAgents({
+    workerName: job.worker_name || job.target_worker,
+    group: job.kind === "design" ? "design" : "write",
+    nicknames: job.agent_nickname ? [job.agent_nickname] : [],
+  });
   const qualityReview = job.status === "succeeded" ? computeQualityReviewFromOutput(job) : null;
   const parentJob = job.parent_id ? getTcGenJob(job.parent_id) : null;
   const parentQualityReview = parentJob?.status === "succeeded" ? computeQualityReviewFromOutput(parentJob) : null;
@@ -591,21 +597,24 @@ export default async function TcGenStatusPage({ params }: { params: Promise<{ id
 
       {/* 상태 배너 */}
       {isActive && (
-        <div className="card border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-          <span className="font-medium">⏳ {job.status === "pending" ? "워커 대기 중" : "생성 중"}…</span>
-          <span className="ml-2 text-xs text-blue-700">
-            {job.status === "pending"
-              ? "워커가 잡을 가져가면 그 워커의 Claude로 실행돼요. 워커가 떠 있어야 진행됩니다. 3초마다 자동 갱신."
-              : <>워커 <strong>{job.worker_name ?? "?"}</strong> 가 기획서를 분석해 작성 중. 3초마다 자동 갱신.</>}
-          </span>
-          {harnessPhase && (
-            <div className="mt-2 flex items-center gap-2 rounded-md bg-white/70 px-3 py-2 text-sm font-medium text-blue-900">
-              <span className="inline-block h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-blue-500" />
-              🔄 {harnessPhase}
-              <span className="ml-auto shrink-0 text-[11px] font-normal text-blue-600">⏱ {elapsedMin}분째 · 예상 40분~1시간+ (개선 루프 변동)</span>
-            </div>
-          )}
-        </div>
+        <>
+          <AgentRunway agents={runwayAgents} progress={job.status === "running" ? (harnessPhase ? 72 : 48) : 10} phase="write" status={job.status === "pending" ? "pending" : "running"} />
+          <div className="card border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            <span className="font-medium">⏳ {job.status === "pending" ? "워커 대기 중" : "생성 중"}…</span>
+            <span className="ml-2 text-xs text-blue-700">
+              {job.status === "pending"
+                ? "워커가 잡을 가져가면 그 워커의 Claude로 실행돼요. 워커가 떠 있어야 진행됩니다. 3초마다 자동 갱신."
+                : <>워커 <strong>{job.worker_name ?? "?"}</strong> 가 기획서를 분석해 작성 중. 3초마다 자동 갱신.</>}
+            </span>
+            {harnessPhase && (
+              <div className="mt-2 flex items-center gap-2 rounded-md bg-white/70 px-3 py-2 text-sm font-medium text-blue-900">
+                <span className="inline-block h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-blue-500" />
+                🔄 {harnessPhase}
+                <span className="ml-auto shrink-0 text-[11px] font-normal text-blue-600">⏱ {elapsedMin}분째 · 예상 40분~1시간+ (개선 루프 변동)</span>
+              </div>
+            )}
+          </div>
+        </>
       )}
       {job.status === "failed" && (
         <div className="card border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
